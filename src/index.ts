@@ -26,4 +26,8 @@ const checkTokenAuthenticatedWithAuthServer = async (token: String) => {
     return status === 200 ? true : false
 }
 
+app.get("/", (req: express.Request, res: express.Response) => {
+    res.send("Photography MicroService API is running")
+})
+
 app.listen(port, () => console.log(`Photography microservice listening on port: ${port}!`))
