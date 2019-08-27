@@ -61,12 +61,12 @@ app.post("/upload", async (req: express.Request, res: express.Response) => {
                     message: "An internal server error occurred"
                 })
             } else {
+                await db.collection('photos').insertOne({ filename, url: `https://modev.sfo2.digitaloceanspaces.com/${filename}` })
                 res.send({
                     code: 200,
                     message: "File uploaded successfully!",
                     file
                 })
-                await db.collection('photos').insertOne({ filename, url: `https://modev.sfo2.digitaloceanspaces.com/${filename}` })
             }
         })
     } else {
@@ -77,7 +77,7 @@ app.post("/upload", async (req: express.Request, res: express.Response) => {
     }
 })
 
-app.get('/photos',async (req: express.Request, res: express.Response) => {
+app.get('/photos', async (req: express.Request, res: express.Response) => {
     res.send(await db.collection('photos').find({}).toArray())
 })
 
