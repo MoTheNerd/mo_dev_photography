@@ -23,25 +23,28 @@ const app = express();
 
 app.use(bodyParser.json({ limit: '50mb' }));
 
+const get = (path: string, ...rest : any[]) => app.get(`/photography${path}`, rest)
+const post = (path: string, ...rest : any[]) => app.post(`/photography${path}`, rest)
+
 require('mongodb').connect(mongocs, { useNewUrlParser: true, useUnifiedTopology: true }, (err: MongoError, result: MongoClient) => {
     if (err) {
         console.log(err)
         process.exit(1);
     } else {
-        db = result.db('default')
+        db = result.db('mw-default')
     }
 })
 
 const checkTokenAuthenticatedWithAuthServer = async (token: String) => {
-    let status = (await axios.post(`/api/auth/authenticateUsingToken`, { token })).data.code
+    let status = (await axios.post(`/auth/authenticateUsingToken`, { token })).data.code
     return status === 200 ? true : false
 }
 
-app.get("/", (req: express.Request, res: express.Response) => {
+get("/", (req: express.Request, res: express.Response) => {
     res.send("Photography MicroService API is running")
 })
 
-app.post("/upload", async (req: express.Request, res: express.Response) => {
+post("/upload", async (req: express.Request, res: express.Response) => {
     let putObjReq: PutObjectRequest
     var base64Data = req.body.data.replace(/^data:image\/png;base64,/, "").replace(/^data:image\/jpeg;base64,/, "");
     let filename = `photography/${crypto.randomBytes(2).toString('hex')}_${moment.utc().toISOString()}_${req.body.filename}`
@@ -77,7 +80,7 @@ app.post("/upload", async (req: express.Request, res: express.Response) => {
     }
 })
 
-app.get('/photos', async (req: express.Request, res: express.Response) => {
+get('/photos', async (req: express.Request, res: express.Response) => {
     res.send(await db.collection('photos').find({}).toArray())
 })
 
