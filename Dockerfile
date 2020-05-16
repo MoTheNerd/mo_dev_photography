@@ -1,6 +1,6 @@
 # mohammaddev/mo_dev_photography
 
-FROM node:12.9.1-alpine
+FROM node:12.16.3-alpine
 
 ENV COMPlus_EnabledDiagnostics=0
 WORKDIR /usr/share/mo_dev_photography
