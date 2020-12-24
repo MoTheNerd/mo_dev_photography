@@ -1,13 +1,14 @@
 require('dotenv').config();
-import { Db, MongoError, MongoClient } from "mongodb";
 import express from 'express'
 import moment from 'moment'
 import bodyParser from 'body-parser'
 import axios from 'axios'
 import aws from 'aws-sdk'
+import { exit } from 'process';
 import crypto from 'crypto';
 import { PutObjectRequest } from "aws-sdk/clients/s3";
 import { Buffer } from "buffer";
+import { Connection, createConnection } from 'mysql2';
 
 
 const s3 = new aws.S3({
@@ -15,24 +16,24 @@ const s3 = new aws.S3({
     accessKeyId: process.env.MO_DEV_SPACE_KEY,
     secretAccessKey: process.env.MO_DEV_SPACE_SECRET,
 });
-const mongocs = process.env.MONGO_CONNECTION_STRING;
+const mysqlcs = process.env.MYSQL_CONNECTION_STRING;
+const schema: "prod" | "dev" = process.env.MYSQL_SCHEMA === "prod" ? "prod" : "dev";
 const port = process.env.PORT ? process.env.PORT : 6003;
-
-let db: Db;
 const app = express();
+let dbConn: Connection;
+
+try {
+    dbConn = createConnection(mysqlcs!);
+} catch (error) {
+    console.error("There was no connection string specified for the sql server");
+    exit(-1);
+}
 
 app.use(bodyParser.json({ limit: '50mb' }));
+app.use((req, res, next)=>{
+    res.setHeader('Access-Control-Allow-Origin', '*');
 
-const get = (path: string, ...rest : any[]) => app.get(`/photography${path}`, rest)
-const post = (path: string, ...rest : any[]) => app.post(`/photography${path}`, rest)
-
-require('mongodb').connect(mongocs, { useNewUrlParser: true, useUnifiedTopology: true }, (err: MongoError, result: MongoClient) => {
-    if (err) {
-        console.log(err)
-        process.exit(1);
-    } else {
-        db = result.db('mw-default')
-    }
+    next();
 })
 
 const checkTokenAuthenticatedWithAuthServer = async (token: String) => {
@@ -40,48 +41,18 @@ const checkTokenAuthenticatedWithAuthServer = async (token: String) => {
     return status === 200 ? true : false
 }
 
-get("/", (req: express.Request, res: express.Response) => {
+app.get("/", (req: express.Request, res: express.Response) => {
     res.send("Photography MicroService API is running")
 })
 
-post("/upload", async (req: express.Request, res: express.Response) => {
-    let putObjReq: PutObjectRequest
-    var base64Data = req.body.data.replace(/^data:image\/png;base64,/, "").replace(/^data:image\/jpeg;base64,/, "");
-    let filename = `photography/${crypto.randomBytes(2).toString('hex')}_${moment.utc().toISOString()}_${req.body.filename}`
-    putObjReq = {
-        Bucket: 'modev',
-        Key: `${filename}`,
-        Body: Buffer.from(base64Data, "base64"),
-        ACL: 'public-read',
-        ContentType: `image/${req.body.filename.split('.')[req.body.filename.split('.').length - 1].toLowerCase() === 'png' ? 'png' : 'jpeg'}`
-    }
-
-    if (checkTokenAuthenticatedWithAuthServer(req.body.token)) {
-        await s3.upload(putObjReq, async (err, file) => {
-            if (err) {
-                res.send({
-                    code: 500,
-                    message: "An internal server error occurred"
-                })
-            } else {
-                await db.collection('photos').insertOne({ filename, url: `https://modev.sfo2.digitaloceanspaces.com/${filename}` })
-                res.send({
-                    code: 200,
-                    message: "File uploaded successfully!",
-                    file
-                })
-            }
-        })
-    } else {
-        res.send({
-            code: 301,
-            message: "You are not authorized to upload images."
-        })
-    }
-})
-
-get('/photos', async (req: express.Request, res: express.Response) => {
-    res.send(await db.collection('photos').find({}).toArray())
+app.get('/posts', async (req: express.Request, res: express.Response) => {
+    dbConn.query(`
+    SELECT * 
+    FROM ${schema}.photography
+    ORDER BY RAND()
+    `, (a, b) => {
+        res.send(b)
+    })
 })
 
 app.listen(port, () => console.log(`Photography microservice listening on port: ${port}!`))
